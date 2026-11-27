@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>एडमिन पैनल</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, "Noto Sans Devanagari", sans-serif; background: #0f172a; color: #e2e8f0; }
+  h1 { font-size: 20px; margin: 0; }
+  h2 { font-size: 16px; margin: 0 0 10px; color: #93c5fd; }
+  header { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 12px 16px; background: #1e293b; position: sticky; top: 0; z-index: 5; }
+  header small { color: #94a3b8; display: block; font-size: 12px; }
+  .tabs { display: flex; gap: 6px; overflow-x: auto; padding: 12px 14px 0; max-width: 760px; margin: 0 auto; }
+  .tab { background: #1e293b; color: #94a3b8; padding: 9px 14px; white-space: nowrap; }
+  .tab.active { background: #3b82f6; color: #fff; }
+  main { max-width: 760px; margin: 0 auto; padding: 14px; display: grid; gap: 14px; }
+  .card { background: #1e293b; border-radius: 14px; padding: 14px; }
+  .center { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 20px; text-align: center; }
+  input, textarea { width: 100%; padding: 11px; margin-bottom: 8px; border-radius: 10px; border: 1px solid #334155; background: #0f172a; color: inherit; font: inherit; }
+  textarea.code { font-family: ui-monospace, Menlo, monospace; font-size: 12px; min-height: 130px; margin-bottom: 4px; }
+  button { padding: 10px 16px; border: 0; border-radius: 10px; cursor: pointer; background: #3b82f6; color: #fff; font: inherit; font-weight: 600; }
+  button.ghost { background: #334155; }
+  button.danger { background: #ef4444; }
+  button.green { background: #16a34a; }
+  button.small { padding: 6px 10px; font-size: 13px; }
+  button:disabled { opacity: .5; cursor: default; }
+  .google { background: #fff; color: #1f2937; padding: 12px 20px; }
+  .btns { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .row { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid #334155; }
+  .row .t { flex: 1; min-width: 0; }
+  .row p { margin: 4px 0 0; color: #94a3b8; font-size: 14px; white-space: pre-wrap; word-break: break-word; }
+  .row b { word-break: break-word; }
+  .pv { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid #334155; }
+  .pv input { width: 20px; height: 20px; margin: 2px 0 0; flex: none; }
+  .pv .t { flex: 1; min-width: 0; }
+  .pv p { margin: 4px 0 0; color: #94a3b8; font-size: 14px; white-space: pre-wrap; word-break: break-word; max-height: 110px; overflow: hidden; }
+  .meta { font-size: 12px; color: #64748b; }
+  .hint { font-size: 13px; color: #94a3b8; line-height: 1.6; }
+  .err { color: #f87171; font-size: 14px; min-height: 18px; }
+  .empty { color: #64748b; font-size: 14px; }
+  .badge { background: #ef4444; color: #fff; border-radius: 999px; padding: 1px 8px; font-size: 12px; margin-left: 4px; }
+  .tag { background: #f59e0b; color: #1f2937; border-radius: 6px; padding: 1px 7px; font-size: 11px; font-weight: 700; margin-left: 6px; }
+  .apicard { border-top: 1px solid #334155; padding: 12px 0; }
+  .apicard code { display: block; background: #0f172a; padding: 6px 8px; border-radius: 8px; font-size: 12px; margin: 6px 0 8px; word-break: break-all; color: #7dd3fc; }
+  .panel { background: #0f172a; border-radius: 10px; padding: 10px; margin-top: 10px; }
+  .panel label { display: flex; justify-content: space-between; align-items: center; margin: 10px 0 6px; font-size: 13px; color: #93c5fd; }
+  details { background: #0f172a; border-radius: 10px; padding: 10px 12px; margin-top: 10px; }
+  summary { cursor: pointer; color: #93c5fd; font-size: 14px; }
+  details ol { padding-left: 20px; margin: 8px 0 0; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+
+<!-- लॉगिन -->
+<div id="loginView" class="center">
+  <h1>एडमिन पैनल</h1>
+  <p class="meta">सिर्फ़ एडमिन के Google खाते से लॉगिन होगा</p>
+  <button id="gLogin" class="google">Google से लॉगिन करें</button>
+  <p id="err" class="err"></p>
+</div>
+
+<!-- ऐप -->
+<div id="app" hidden>
+  <header>
+    <div><h1>एडमिन पैनल</h1><small id="who"></small></div>
+    <button id="logout" class="ghost small">लॉगआउट</button>
+  </header>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="qa">सवाल-जवाब</button>
+    <button class="tab" data-tab="bulk">बल्क पेस्ट</button>
+    <button class="tab" data-tab="api">API</button>
+    <button class="tab" data-tab="ai">AI सेटिंग</button>
+    <button class="tab" data-tab="un">बिना जवाब <span id="unCount" class="badge" hidden>0</span></button>
+  </div>
+
+  <main>
+    <!-- 1) सवाल-जवाब -->
+    <div data-pane="qa" style="display:grid;gap:14px">
+      <section class="card">
+        <h2 id="formTitle">नया सवाल-जवाब जोड़ें</h2>
+        <form id="form">
+          <input id="fq" placeholder="सवाल" required>
+          <textarea id="fa" rows="4" placeholder="जवाब" required></textarea>
+          <div class="btns">
+            <button id="saveBtn">सेव करें</button>
+            <button type="button" id="cancelEdit" class="ghost" hidden>रद्द करें</button>
+          </div>
+        </form>
+      </section>
+      <section class="card">
+        <h2>सेव सवाल-जवाब (<span id="count">0</span>)</h2>
+        <input id="search" placeholder="खोजें...">
+        <div id="list"></div>
+      </section>
+    </div>
+
+    <!-- 2) बल्क पेस्ट -->
+    <div data-pane="bulk" hidden>
+      <section class="card">
+        <h2>किसी भी AI से कॉपी करके एक साथ पेस्ट करें</h2>
+        <p class="hint">ChatGPT, Gemini, Claude या किसी भी AI के सवाल-जवाब पूरे एक साथ नीचे पेस्ट करें। पहचानने के बाद आप जाँचकर सेव कर सकते हैं।</p>
+        <textarea id="bulkText" class="code" style="min-height:220px" placeholder="Q: भारत की राजधानी क्या है?&#10;A: नई दिल्ली।&#10;&#10;Q: ताजमहल कहाँ है?&#10;A: आगरा में।"></textarea>
+        <div class="btns">
+          <button id="bulkParse">पहचानें</button>
+          <button id="bulkClear" class="ghost">साफ़ करें</button>
+          <button id="bulkPrompt" class="ghost">AI के लिए प्रॉम्प्ट कॉपी करें</button>
+        </div>
+        <details>
+          <summary>कौन-से फ़ॉर्मेट पहचाने जाते हैं?</summary>
+          <ol class="hint">
+            <li><b>Q: ... A: ...</b> या <b>प्रश्न: ... उत्तर: ...</b> या <b>सवाल: ... जवाब: ...</b> (नंबर के साथ भी: Q1., Q2.)</li>
+            <li><b>1. सवाल</b> और उसके नीचे जवाब की लाइनें</li>
+            <li>खाली लाइन से अलग किए गए ब्लॉक: पहली लाइन सवाल, बाकी जवाब</li>
+            <li>JSON: <b>[{"question":"...","answer":"..."}]</b></li>
+          </ol>
+        </details>
+      </section>
+
+      <section class="card" id="bulkPreview" hidden style="margin-top:14px">
+        <h2>पहचाने गए (<span id="bulkCount">0</span>)</h2>
+        <div class="btns" style="margin-bottom:6px">
+          <button id="bulkAll" class="ghost small">सब चुनें</button>
+          <button id="bulkNone" class="ghost small">कोई नहीं</button>
+        </div>
+        <div id="bulkList"></div>
+        <button id="bulkSave" class="green" style="margin-top:12px;width:100%">सेव करें</button>
+      </section>
+    </div>
+
+    <!-- 3) API -->
+    <div data-pane="api" hidden>
+      <section class="card">
+        <h2>नई API बनाएँ</h2>
+        <p class="hint">API आपके सभी सेव सवाल-जवाब का एक पढ़ने-भर का स्नैपशॉट है। हर वेबसाइट या व्यक्ति के लिए अलग API बनाएँ, ताकि ज़रूरत पड़ने पर सिर्फ़ उसी को बंद कर सकें।</p>
+        <input id="apiName" placeholder="नाम, जैसे: मेरी वेबसाइट">
+        <button id="apiCreate">API बनाएँ</button>
+
+        <details>
+          <summary>अपनी वेबसाइट में HTML कैसे जोड़ें?</summary>
+          <ol class="hint">
+            <li>नीचे अपनी API के कार्ड पर <b>कोड देखें</b> दबाएँ।</li>
+            <li><b>HTML एम्बेड कोड</b> के आगे <b>कॉपी</b> दबाएँ।</li>
+            <li>अपनी वेबसाइट की HTML फ़ाइल खोलें और कोड को <b>&lt;/body&gt;</b> से ठीक ऊपर पेस्ट करें।
+              WordPress में "Custom HTML" ब्लॉक, Blogger में "HTML/JavaScript" गैजेट, Wix में "Embed Code" में पेस्ट करें।</li>
+            <li>पेज के <b>&lt;head&gt;</b> में <b>&lt;meta charset="UTF-8"&gt;</b> होना चाहिए, वरना हिंदी बिगड़ सकती है।</li>
+            <li>सवाल-जवाब बदलने पर API कार्ड पर <b>अपडेट करें</b> दबाएँ। वेबसाइट में दोबारा कोड डालने की ज़रूरत नहीं।</li>
+          </ol>
+        </details>
+      </section>
+
+      <section class="card" style="margin-top:14px">
+        <h2>आपकी API (<span id="apiCount">0</span>)</h2>
+        <div id="apiList"></div>
+      </section>
+    </div>
+
+    <!-- 3b) AI सेटिंग -->
+    <div data-pane="ai" hidden>
+      <section class="card">
+        <h2>AI दिमाग (Ollama)</h2>
+        <p class="hint">चालू होने पर यूज़र के सवाल पर AI आपके सेव सवाल-जवाब पढ़कर सोचता है और अपने शब्दों में जवाब देता है। जो बात सेव जानकारी में नहीं है, वह नहीं बताता और सवाल "बिना जवाब" में आ जाता है।</p>
+        <label class="hint" style="display:flex;gap:10px;align-items:center;margin-bottom:10px">
+          <input type="checkbox" id="aiOn" style="width:20px;height:20px;margin:0">
+          AI से सोचकर जवाब देना चालू करें
+        </label>
+        <input id="aiUrl" placeholder="Ollama का सार्वजनिक URL, जैसे https://xxxx.trycloudflare.com">
+        <input id="aiModel" placeholder="मॉडल का नाम, जैसे llama3.2">
+        <div class="btns">
+          <button id="aiSave">सेव करें</button>
+          <button id="aiTest" class="ghost">जाँचें</button>
+        </div>
+        <p id="aiTestOut" class="hint"></p>
+
+        <details>
+          <summary>Ollama को सबके लिए कैसे चलाएँ?</summary>
+          <ol class="hint">
+            <li>Ollama इंस्टॉल करें (ollama.com) और मॉडल डाउनलोड करें:
+              <pre style="white-space:pre-wrap;background:#1e293b;padding:8px;border-radius:8px;margin:6px 0">ollama pull llama3.2</pre>
+              हिंदी के लिए <b>qwen2.5:7b</b> भी अच्छा है।</li>
+            <li>ब्राउज़र को अनुमति देने के लिए Windows में कमांड प्रॉम्प्ट में यह चलाएँ, फिर Ollama बंद करके दोबारा चालू करें:
+              <pre style="white-space:pre-wrap;background:#1e293b;padding:8px;border-radius:8px;margin:6px 0">setx OLLAMA_ORIGINS "*"</pre>
+              Mac/Linux में: <b>OLLAMA_ORIGINS="*" ollama serve</b></li>
+            <li>cloudflared इंस्टॉल करके सुरंग (tunnel) चलाएँ:
+              <pre style="white-space:pre-wrap;background:#1e293b;padding:8px;border-radius:8px;margin:6px 0">cloudflared tunnel --url http://localhost:11434 --http-host-header="localhost:11434"</pre></li>
+            <li>जो <b>https://....trycloudflare.com</b> लिंक दिखे, उसे ऊपर URL में डालें, <b>सेव करें</b> और <b>जाँचें</b> दबाएँ।</li>
+            <li>यह लिंक हर बार tunnel दोबारा चलाने पर बदल जाता है, तब नया लिंक यहाँ डालना होगा। पक्का लिंक चाहिए तो Cloudflare का नामित tunnel बनाएँ।</li>
+          </ol>
+          <p class="hint">ध्यान रखें: कंप्यूटर और tunnel चालू रहने तक ही AI चलेगा। बंद होने पर ऐप सेव जवाब से काम करता रहेगा। यह URL जिसके पास होगा वह आपके कंप्यूटर का AI इस्तेमाल कर सकता है, इसलिए इसे सार्वजनिक न करें।</p>
+        </details>
+      </section>
+    </div>
+
+    <!-- 4) बिना जवाब -->
+    <div data-pane="un" hidden>
+      <section class="card">
+        <h2>यूज़र के बिना जवाब वाले सवाल</h2>
+        <div id="unList"></div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+import {
+  getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, signOut, onAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+import {
+  getFirestore, collection, addDoc, setDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy,
+  serverTimestamp, writeBatch
+} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+
+// ---------- कॉन्फ़िग ----------
+const firebaseConfig = {
+  apiKey: "AIzaSyCS14MlIHUrA1Swhb_423unD7jUXUwOc60",
+  authDomain: "dd-app-7861e.firebaseapp.com",
+  projectId: "dd-app-7861e",
+  storageBucket: "dd-app-7861e.firebasestorage.app",
+  messagingSenderId: "423047873102",
+  appId: "1:423047873102:web:4504a6dec1e2e0801d391f"
+};
+const ADMIN_EMAIL = "singhvishvanath69@gmail.com";
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const $ = (id) => document.getElementById(id);
+
+// ---------- मिलान (हिंदी + अंग्रेज़ी) ----------
+function normalize(t) {
+  return (t || "").toLowerCase().replace(/[।?!.,;:'"()\-_\/\\|]/g, " ").replace(/\s+/g, " ").trim();
+}
+function grams(s, n = 3) {
+  const p = ` ${s} `, set = new Set();
+  for (let i = 0; i <= p.length - n; i++) set.add(p.slice(i, i + n));
+  return set;
+}
+function dice(a, b) {
+  if (!a.size || !b.size) return 0;
+  let c = 0; for (const x of a) if (b.has(x)) c++;
+  return (2 * c) / (a.size + b.size);
+}
+function tokenScore(a, b) {
+  const A = new Set(a.split(" ")), B = new Set(b.split(" "));
+  let c = 0; for (const x of A) if (B.has(x)) c++;
+  return c / Math.max(A.size, B.size);
+}
+function similarity(q1, q2) {
+  const a = normalize(q1), b = normalize(q2);
+  if (!a || !b) return 0;
+  if (a === b) return 1;
+  return 0.6 * dice(grams(a), grams(b)) + 0.4 * tokenScore(a, b);
+}
+
+// ---------- सहायक ----------
+async function copyText(text, btn) {
+  try { await navigator.clipboard.writeText(text); }
+  catch (e) {
+    const ta = document.createElement("textarea");
+    ta.value = text; document.body.appendChild(ta); ta.select();
+    document.execCommand("copy"); ta.remove();
+  }
+  if (btn) {
+    const old = btn.textContent;
+    btn.textContent = "कॉपी हो गया ✓";
+    setTimeout(() => (btn.textContent = old), 1500);
+  }
+}
+const fmtTime = (ts) => (ts && ts.toDate ? ts.toDate().toLocaleString("hi-IN") : "");
+
+// ---------- टैब ----------
+function showTab(name) {
+  document.querySelectorAll(".tab").forEach((b) => b.classList.toggle("active", b.dataset.tab === name));
+  document.querySelectorAll("[data-pane]").forEach((p) => (p.hidden = p.dataset.pane !== name));
+  window.scrollTo({ top: 0 });
+}
+document.querySelectorAll(".tab").forEach((b) => (b.onclick = () => showTab(b.dataset.tab)));
+
+// ---------- लॉगिन ----------
+$("gLogin").onclick = async () => {
+  $("err").textContent = "";
+  const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: "select_account" });
+  try {
+    await signInWithPopup(auth, provider);
+  } catch (e) {
+    if (e.code === "auth/popup-blocked" || e.code === "auth/operation-not-supported-in-this-environment") {
+      signInWithRedirect(auth, provider);
+    } else if (e.code !== "auth/popup-closed-by-user" && e.code !== "auth/cancelled-popup-request") {
+      $("err").textContent = "लॉगिन नहीं हुआ: " + (e.code || e.message);
+    }
+  }
+};
+$("logout").onclick = () => signOut(auth);
+
+let unsubs = [];
+let qaList = [], unList = [], apiList = [];
+let editingId = null, fromUnId = null, openKey = null;
+
+onAuthStateChanged(auth, (user) => {
+  unsubs.forEach((u) => u()); unsubs = [];
+  if (!user) {
+    $("loginView").hidden = false; $("app").hidden = true;
+    return;
+  }
+  if ((user.email || "").toLowerCase() !== ADMIN_EMAIL) {
+    $("err").textContent = "यह खाता एडमिन नहीं है: " + user.email;
+    signOut(auth);
+    return;
+  }
+  $("loginView").hidden = true; $("app").hidden = false;
+  $("who").textContent = user.email;
+  listen();
+});
+
+function listen() {
+  listenAi();
+  unsubs.push(onSnapshot(query(collection(db, "qa"), orderBy("createdAt", "desc")), (s) => {
+    qaList = s.docs.map((d) => ({ id: d.id, ...d.data() }));
+    renderList(); renderApis();
+  }, (e) => alert("सवाल लोड नहीं हुए: " + e.code)));
+
+  unsubs.push(onSnapshot(query(collection(db, "unanswered"), orderBy("createdAt", "desc")), (s) => {
+    unList = s.docs.map((d) => ({ id: d.id, ...d.data() }));
+    renderUn();
+  }, (e) => alert("बिना जवाब वाले सवाल लोड नहीं हुए: " + e.code)));
+
+  unsubs.push(onSnapshot(query(collection(db, "apis"), orderBy("createdAt", "desc")), (s) => {
+    apiList = s.docs.map((d) => ({ id: d.id, ...d.data() }));
+    renderApis();
+  }, (e) => alert("API सूची लोड नहीं हुई (Rules देखें): " + e.code)));
+}
+
+// ---------- एक-एक सवाल जोड़ना ----------
+function resetForm() {
+  editingId = null; fromUnId = null;
+  $("fq").value = ""; $("fa").value = "";
+  $("formTitle").textContent = "नया सवाल-जवाब जोड़ें";
+  $("cancelEdit").hidden = true;
+}
+$("cancelEdit").onclick = resetForm;
+
+$("form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const question = $("fq").value.trim();
+  const answer = $("fa").value.trim();
+  if (!question || !answer) return;
+  try {
+    if (editingId) {
+      await updateDoc(doc(db, "qa", editingId), { question, answer, updatedAt: serverTimestamp() });
+    } else {
+      const dup = qaList.find((x) => similarity(question, x.question) >= 0.85);
+      if (dup && !confirm("मिलता-जुलता सवाल पहले से है:\n\n" + dup.question + "\n\nफिर भी जोड़ें?")) return;
+      await addDoc(collection(db, "qa"), { question, answer, createdAt: serverTimestamp() });
+      if (fromUnId) await deleteDoc(doc(db, "unanswered", fromUnId));
+    }
+    resetForm();
+  } catch (err) {
+    alert("सेव नहीं हुआ: " + (err.code || err.message));
+  }
+});
+
+// ---------- सूचियाँ ----------
+function makeRow(title, body, meta, buttons) {
+  const row = document.createElement("div");
+  row.className = "row";
+  const t = document.createElement("div");
+  t.className = "t";
+  const b = document.createElement("b"); b.textContent = title;
+  t.appendChild(b);
+  if (body) { const p = document.createElement("p"); p.textContent = body; t.appendChild(p); }
+  if (meta) { const m = document.createElement("div"); m.className = "meta"; m.textContent = meta; t.appendChild(m); }
+  const btns = document.createElement("div");
+  btns.className = "btns";
+  buttons.forEach(([label, cls, fn]) => {
+    const btn = document.createElement("button");
+    btn.textContent = label; btn.className = "small " + cls; btn.onclick = fn;
+    btns.appendChild(btn);
+  });
+  row.append(t, btns);
+  return row;
+}
+
+function renderList() {
+  const term = normalize($("search").value);
+  const box = $("list");
+  box.innerHTML = "";
+  $("count").textContent = qaList.length;
+  const items = term
+    ? qaList.filter((x) => normalize(x.question + " " + x.answer).includes(term))
+    : qaList;
+  if (!items.length) { box.innerHTML = '<p class="empty">कुछ नहीं मिला</p>'; return; }
+  for (const x of items) {
+    box.appendChild(makeRow(x.question, x.answer, "", [
+      ["बदलें", "ghost", () => {
+        editingId = x.id; fromUnId = null;
+        $("fq").value = x.question; $("fa").value = x.answer;
+        $("formTitle").textContent = "सवाल-जवाब बदलें";
+        $("cancelEdit").hidden = false;
+        showTab("qa");
+      }],
+      ["हटाएँ", "danger", async () => {
+        if (!confirm("यह सवाल हटाना है?")) return;
+        try { await deleteDoc(doc(db, "qa", x.id)); }
+        catch (e) { alert("हटाया नहीं जा सका: " + (e.code || e.message)); }
+      }]
+    ]));
+  }
+}
+$("search").addEventListener("input", renderList);
+
+function renderUn() {
+  const box = $("unList");
+  box.innerHTML = "";
+  $("unCount").textContent = unList.length;
+  $("unCount").hidden = !unList.length;
+  if (!unList.length) { box.innerHTML = '<p class="empty">कोई नया सवाल नहीं</p>'; return; }
+  for (const x of unList) {
+    box.appendChild(makeRow(x.question, "", [x.userName || x.userEmail || "", fmtTime(x.createdAt)].filter(Boolean).join(" • "), [
+      ["जवाब दें", "", () => {
+        editingId = null; fromUnId = x.id;
+        $("fq").value = x.question; $("fa").value = "";
+        $("formTitle").textContent = "इस सवाल का जवाब लिखें";
+        $("cancelEdit").hidden = false;
+        showTab("qa");
+        $("fa").focus();
+      }],
+      ["हटाएँ", "danger", async () => {
+        try { await deleteDoc(doc(db, "unanswered", x.id)); }
+        catch (e) { alert("हटाया नहीं जा सका: " + (e.code || e.message)); }
+      }]
+    ]));
+  }
+}
+
+// =====================================================
+//   बल्क पेस्ट: AI के सवाल-जवाब एक साथ
+// =====================================================
+const Q_RE = /^\s*(?:[-*•]\s*)?(?:Question|Q|प्रश्न|सवाल)\s*\.?\s*[0-9०-९]*\s*[:：.)\-–]\s*/i;
+const A_RE = /^\s*(?:[-*•]\s*)?(?:Answer|Ans|A|उत्तर|जवाब|जबाब)\s*\.?\s*[0-9०-९]*\s*[:：.)\-–]\s*/i;
+const NUM_RE = /^\s*[0-9०-९]+\s*[.)]\s+/;
+const INLINE_A = /(?:^|\s)(?:Answer|Ans|A|उत्तर|जवाब|जबाब)\s*[0-9०-९]*\s*[:：]\s*/i;
+
+function tryJson(text) {
+  const t = text.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
+  if (!/^[\[{]/.test(t)) return null;
+  try {
+    let d = JSON.parse(t);
+    if (!Array.isArray(d)) d = Object.values(d).find(Array.isArray) || [];
+    const g = (o, keys) => {
+      for (const k of keys) if (typeof o[k] === "string" && o[k].trim()) return o[k].trim();
+      return "";
+    };
+    return d.map((o) => ({
+      question: g(o, ["question", "q", "Question", "Q", "प्रश्न", "सवाल"]),
+      answer: g(o, ["answer", "a", "Answer", "A", "उत्तर", "जवाब", "जबाब"])
+    })).filter((x) => x.question && x.answer);
+  } catch (e) { return null; }
+}
+
+function parseBulk(raw) {
+  const text = (raw || "").replace(/\r/g, "").trim();
+  if (!text) return [];
+  const j = tryJson(text);
+  if (j) return j;
+
+  const lines = text.split("\n").map((l) => l.replace(/\*\*|__/g, "").replace(/^\s*#{1,6}\s*/, "").replace(/\s+$/, ""));
+  const hasQ = lines.some((l) => Q_RE.test(l));
+  const hasA = lines.some((l) => A_RE.test(l));
+  const items = [];
+
+  // 1) साफ़ Q:/A: मार्कर वाला फ़ॉर्मेट
+  if (hasQ || hasA) {
+    let cur = null, mode = "q";
+    const push = () => {
+      if (cur) {
+        const q = cur.q.join(" ").replace(/\s+/g, " ").trim();
+        const a = cur.a.join("\n").trim();
+        if (q && a) items.push({ question: q, answer: a });
+      }
+      cur = null;
+    };
+    const isQ = (l) => Q_RE.test(l) || (!hasQ && NUM_RE.test(l));
+    for (const line of lines) {
+      if (isQ(line)) {
+        push();
+        cur = { q: [], a: [] }; mode = "q";
+        const rest = Q_RE.test(line) ? line.replace(Q_RE, "") : line.replace(NUM_RE, "");
+        const m = rest.match(INLINE_A);
+        if (m) {
+          cur.q.push(rest.slice(0, m.index).trim());
+          cur.a.push(rest.slice(m.index + m[0].length));
+          mode = "a";
+        } else cur.q.push(rest.trim());
+        continue;
+      }
+      if (A_RE.test(line)) {
+        if (!cur) cur = { q: [], a: [] };
+        mode = "a";
+        cur.a.push(line.replace(A_RE, ""));
+        continue;
+      }
+      if (!cur) continue;
+      if (!line.trim()) { if (mode === "a") cur.a.push(""); continue; }
+      (mode === "q" ? cur.q : cur.a).push(line);
+    }
+    push();
+    return items;
+  }
+
+  // 2) 1. सवाल / नीचे जवाब
+  if (lines.filter((l) => NUM_RE.test(l)).length >= 2) {
+    let cur = null;
+    const push = () => {
+      if (cur) {
+        const a = cur.a.join("\n").trim();
+        if (cur.q && a) items.push({ question: cur.q, answer: a });
+      }
+      cur = null;
+    };
+    for (const line of lines) {
+      if (NUM_RE.test(line)) { push(); cur = { q: line.replace(NUM_RE, "").trim(), a: [] }; }
+      else if (cur) cur.a.push(line);
+    }
+    push();
+    return items;
+  }
+
+  // 3) खाली लाइन से अलग ब्लॉक
+  for (const block of text.split(/\n\s*\n/)) {
+    const ls = block.split("\n").map((l) => l.replace(/\*\*|__/g, "").trim()).filter(Boolean);
+    if (ls.length >= 2) items.push({ question: ls[0], answer: ls.slice(1).join("\n") });
+  }
+  return items;
+}
+
+let bulkItems = [];
+
+function renderBulk() {
+  const box = $("bulkList");
+  box.innerHTML = "";
+  $("bulkPreview").hidden = false;
+  $("bulkCount").textContent = bulkItems.length;
+  if (!bulkItems.length) {
+    box.innerHTML = '<p class="empty">कोई सवाल-जवाब नहीं पहचाना गया। फ़ॉर्मेट देखें: Q: ... और A: ...</p>';
+    $("bulkSave").disabled = true;
+    $("bulkSave").textContent = "सेव करें";
+    return;
+  }
+  bulkItems.forEach((it, i) => {
+    const row = document.createElement("label");
+    row.className = "pv";
+    const cb = document.createElement("input");
+    cb.type = "checkbox"; cb.checked = it.on;
+    cb.onchange = () => { it.on = cb.checked; updateBulkBtn(); };
+    const t = document.createElement("div");
+    t.className = "t";
+    const b = document.createElement("b"); b.textContent = it.question;
+    if (it.dup) { const tag = document.createElement("span"); tag.className = "tag"; tag.textContent = "पहले से है"; b.appendChild(tag); }
+    const p = document.createElement("p"); p.textContent = it.answer;
+    t.append(b, p);
+    row.append(cb, t);
+    box.appendChild(row);
+  });
+  updateBulkBtn();
+}
+function updateBulkBtn() {
+  const n = bulkItems.filter((x) => x.on).length;
+  $("bulkSave").textContent = `चुने हुए ${n} सेव करें`;
+  $("bulkSave").disabled = n === 0;
+}
+
+$("bulkParse").onclick = () => {
+  const items = parseBulk($("bulkText").value);
+  bulkItems = items.map((it) => {
+    const dup = qaList.some((x) => similarity(it.question, x.question) >= 0.85);
+    return { ...it, dup, on: !dup };
+  });
+  renderBulk();
+};
+$("bulkClear").onclick = () => {
+  $("bulkText").value = ""; bulkItems = []; $("bulkPreview").hidden = true;
+};
+$("bulkAll").onclick = () => { bulkItems.forEach((x) => (x.on = true)); renderBulk(); };
+$("bulkNone").onclick = () => { bulkItems.forEach((x) => (x.on = false)); renderBulk(); };
+
+$("bulkPrompt").onclick = (e) => copyText(
+  "नीचे दिए विषय पर सवाल-जवाब बनाओ। हर आइटम बिल्कुल इसी फ़ॉर्मेट में लिखो, कोई और टेक्स्ट मत जोड़ो:\n\nQ: सवाल यहाँ\nA: जवाब यहाँ\n\nQ: अगला सवाल\nA: उसका जवाब\n\nविषय: ",
+  e.target
+);
+
+$("bulkSave").onclick = async () => {
+  const chosen = bulkItems.filter((x) => x.on);
+  if (!chosen.length) return;
+  $("bulkSave").disabled = true;
+  try {
+    for (let i = 0; i < chosen.length; i += 400) {
+      const batch = writeBatch(db);
+      chosen.slice(i, i + 400).forEach((x) => {
+        batch.set(doc(collection(db, "qa")), {
+          question: x.question, answer: x.answer, createdAt: serverTimestamp()
+        });
+      });
+      await batch.commit();
+    }
+    alert(chosen.length + " सवाल-जवाब सेव हो गए।");
+    $("bulkText").value = ""; bulkItems = []; $("bulkPreview").hidden = true;
+  } catch (err) {
+    alert("सेव नहीं हुआ: " + (err.code || err.message));
+    $("bulkSave").disabled = false;
+  }
+};
+
+// =====================================================
+//   API बनाना, बाँटना और अपडेट करना
+// =====================================================
+const endpoint = (key) =>
+  `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents/apis/${key}/data/qa?key=${firebaseConfig.apiKey}`;
+
+function makeKey() {
+  const a = new Uint8Array(16);
+  crypto.getRandomValues(a);
+  return "ddk_" + [...a].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+function currentJson() {
+  return JSON.stringify(qaList.map((x) => ({ question: x.question, answer: x.answer })));
+}
+function sig(s) {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  return s.length + "-" + (h >>> 0);
+}
+
+async function publishApi(key, extra) {
+  const json = currentJson();
+  if (new Blob([json]).size > 900000) throw new Error("डेटा बहुत बड़ा है (लगभग 900KB से ऊपर)");
+  await setDoc(doc(db, "apis", key, "data", "qa"), { json, count: qaList.length, updatedAt: serverTimestamp() });
+  await setDoc(doc(db, "apis", key), { ...extra, count: qaList.length, sig: sig(json), updatedAt: serverTimestamp() }, { merge: true });
+}
+
+$("apiCreate").onclick = async () => {
+  const name = $("apiName").value.trim();
+  if (!name) { alert("API का नाम लिखें"); return; }
+  if (!qaList.length && !confirm("अभी कोई सवाल-जवाब सेव नहीं है। फिर भी API बनाएँ?")) return;
+  $("apiCreate").disabled = true;
+  try {
+    await publishApi(makeKey(), { name, ownerEmail: ADMIN_EMAIL, createdAt: serverTimestamp() });
+    $("apiName").value = "";
+  } catch (e) {
+    alert("API नहीं बनी: " + (e.code || e.message));
+  }
+  $("apiCreate").disabled = false;
+};
+
+// वेबसाइट में चिपकाने वाला HTML कोड (हर API के लिए अलग URL के साथ)
+function buildEmbed(url) {
+  return String.raw`<div id="qa-box" style="max-width:480px;margin:auto;font-family:sans-serif"></div>
+` + "<scr" + "ipt>" + String.raw`
+(function () {
+  var API_URL = "${url}";
+  var THRESHOLD = 0.55;
+  var data = null;
+
+  function norm(t) { return (t || "").toLowerCase().replace(/[।?!.,;:'"()\-_\/\\|]/g, " ").replace(/\s+/g, " ").trim(); }
+  function grams(s) { var p = " " + s + " ", set = {}, n = 0, i, g; for (i = 0; i <= p.length - 3; i++) { g = p.slice(i, i + 3); if (!set[g]) { set[g] = 1; n++; } } return { set: set, n: n }; }
+  function dice(a, b) { if (!a.n || !b.n) return 0; var c = 0, k; for (k in a.set) if (b.set[k]) c++; return 2 * c / (a.n + b.n); }
+  function tok(a, b) { var A = a.split(" "), B = b.split(" "), sa = {}, sb = {}, i, c = 0, na = 0, nb = 0, k; for (i = 0; i < A.length; i++) sa[A[i]] = 1; for (i = 0; i < B.length; i++) sb[B[i]] = 1; for (k in sa) { na++; if (sb[k]) c++; } for (k in sb) nb++; return c / Math.max(na, nb); }
+  function sim(x, y) { var a = norm(x), b = norm(y); if (!a || !b) return 0; if (a === b) return 1; return 0.6 * dice(grams(a), grams(b)) + 0.4 * tok(a, b); }
+
+  function load() {
+    if (data) return Promise.resolve(data);
+    return fetch(API_URL).then(function (r) { return r.json(); }).then(function (d) {
+      data = JSON.parse(d.fields.json.stringValue);
+      return data;
+    });
+  }
+
+  // कहीं भी इस्तेमाल करें: askQA("सवाल").then(function (r) { console.log(r); })
+  window.askQA = function (question) {
+    return load().then(function (list) {
+      var best = null, bs = 0, i, s;
+      for (i = 0; i < list.length; i++) { s = sim(question, list[i].question); if (s > bs) { bs = s; best = list[i]; } }
+      return bs >= THRESHOLD ? { found: true, answer: best.answer, question: best.question, score: bs } : { found: false, score: bs };
+    });
+  };
+
+  var box = document.getElementById("qa-box");
+  if (!box) return;
+  var inp = document.createElement("input");
+  inp.placeholder = "अपना सवाल लिखें...";
+  inp.style.cssText = "width:100%;padding:10px;box-sizing:border-box;border:1px solid #ccc;border-radius:8px;font-size:16px";
+  var btn = document.createElement("button");
+  btn.textContent = "पूछें";
+  btn.style.cssText = "margin-top:8px;padding:10px 18px;border:0;border-radius:8px;background:#3b82f6;color:#fff;font-size:16px;cursor:pointer";
+  var out = document.createElement("div");
+  out.style.cssText = "margin-top:12px;padding:12px;border-radius:8px;background:#f1f5f9;white-space:pre-wrap;display:none";
+  box.appendChild(inp); box.appendChild(btn); box.appendChild(out);
+
+  function go() {
+    var q = inp.value.trim();
+    if (!q) return;
+    out.style.display = "block";
+    out.textContent = "ढूँढ रहा हूँ...";
+    window.askQA(q).then(function (r) {
+      out.textContent = r.found ? r.answer : "इस सवाल का जवाब उपलब्ध नहीं है।";
+    }).catch(function () {
+      out.textContent = "कुछ गड़बड़ हुई, बाद में कोशिश करें।";
+    });
+  }
+  btn.onclick = go;
+  inp.onkeydown = function (e) { if (e.key === "Enter") go(); };
+})();
+` + "</scr" + "ipt>";
+}
+
+function buildFetchExample(url) {
+  return `fetch("${url}")
+  .then(r => r.json())
+  .then(d => {
+    const qa = JSON.parse(d.fields.json.stringValue);
+    console.log(qa); // [{question, answer}, ...]
+  });`;
+}
+
+function codeBlock(label, text, rows) {
+  const wrap = document.createElement("div");
+  const lab = document.createElement("label");
+  const sp = document.createElement("span"); sp.textContent = label;
+  const cp = document.createElement("button");
+  cp.className = "small ghost"; cp.textContent = "कॉपी";
+  cp.onclick = () => copyText(text, cp);
+  lab.append(sp, cp);
+  const ta = document.createElement("textarea");
+  ta.className = "code"; ta.readOnly = true; ta.value = text;
+  if (rows) ta.style.minHeight = rows;
+  ta.onfocus = () => ta.select();
+  wrap.append(lab, ta);
+  return wrap;
+}
+
+function codePanel(key) {
+  const url = endpoint(key);
+  const p = document.createElement("div");
+  p.className = "panel";
+  p.append(
+    codeBlock("1) HTML एम्बेड कोड (वेबसाइट में पेस्ट करें)", buildEmbed(url), "260px"),
+    codeBlock("2) API URL", url, "80px"),
+    codeBlock("3) JavaScript उदाहरण (डेवलपर के लिए)", buildFetchExample(url), "120px")
+  );
+  const note = document.createElement("p");
+  note.className = "hint";
+  note.textContent = "ध्यान रखें: जिसके पास यह URL होगा वह सारे सवाल-जवाब पढ़ सकता है। गलत हाथ में चला जाए तो इस API को हटाकर नई बना लें।";
+  p.appendChild(note);
+  return p;
+}
+
+function renderApis() {
+  const box = $("apiList");
+  box.innerHTML = "";
+  $("apiCount").textContent = apiList.length;
+  if (!apiList.length) { box.innerHTML = '<p class="empty">अभी कोई API नहीं बनी</p>'; return; }
+  const curSig = sig(currentJson());
+
+  for (const a of apiList) {
+    const card = document.createElement("div");
+    card.className = "apicard";
+
+    const head = document.createElement("div");
+    const nm = document.createElement("b"); nm.textContent = a.name || "बिना नाम";
+    head.appendChild(nm);
+    if (a.sig && a.sig !== curSig) {
+      const tag = document.createElement("span"); tag.className = "tag"; tag.textContent = "अपडेट बाकी";
+      head.appendChild(tag);
+    }
+    const meta = document.createElement("div");
+    meta.className = "meta";
+    meta.textContent = `${a.count || 0} सवाल • अपडेट: ${fmtTime(a.updatedAt) || "..."}`;
+    const key = document.createElement("code");
+    key.textContent = a.id;
+
+    const btns = document.createElement("div");
+    btns.className = "btns";
+    const mk = (label, cls, fn) => {
+      const b = document.createElement("button");
+      b.textContent = label; b.className = "small " + cls; b.onclick = fn;
+      btns.appendChild(b);
+    };
+    mk(openKey === a.id ? "कोड छुपाएँ" : "कोड देखें", "", () => { openKey = openKey === a.id ? null : a.id; renderApis(); });
+    mk("अपडेट करें", "green", async (e) => {
+      e.target.disabled = true;
+      try { await publishApi(a.id, {}); }
+      catch (err) { alert("अपडेट नहीं हुआ: " + (err.code || err.message)); }
+      e.target.disabled = false;
+    });
+    mk("हटाएँ", "danger", async () => {
+      if (!confirm("API '" + (a.name || a.id) + "' हटानी है? इसे इस्तेमाल करने वाली वेबसाइटें काम करना बंद कर देंगी।")) return;
+      try {
+        await deleteDoc(doc(db, "apis", a.id, "data", "qa"));
+        await deleteDoc(doc(db, "apis", a.id));
+        if (openKey === a.id) openKey = null;
+      } catch (err) { alert("हटाई नहीं जा सकी: " + (err.code || err.message)); }
+    });
+
+    card.append(head, meta, key, btns);
+    if (openKey === a.id) card.appendChild(codePanel(a.id));
+    box.appendChild(card);
+  }
+}
+
+// =====================================================
+//   AI सेटिंग (Ollama का पता, मॉडल, चालू/बंद)
+// =====================================================
+function cleanAiUrl(u) {
+  return (u || "").trim().replace(/\/api.*$/i, "").replace(/\/+$/, "");
+}
+
+function listenAi() {
+  unsubs.push(onSnapshot(doc(db, "settings", "ai"), (s) => {
+    const d = s.exists() ? s.data() : {};
+    $("aiOn").checked = !!d.enabled;
+    $("aiUrl").value = d.url || "";
+    $("aiModel").value = d.model || "llama3.2";
+  }, () => {}));
+}
+
+$("aiSave").onclick = async () => {
+  const url = cleanAiUrl($("aiUrl").value);
+  const model = $("aiModel").value.trim() || "llama3.2";
+  const enabled = $("aiOn").checked;
+  if (enabled && !url) { alert("चालू करने से पहले Ollama का URL डालें"); return; }
+  try {
+    await setDoc(doc(db, "settings", "ai"), { enabled, url, model, updatedAt: serverTimestamp() });
+    $("aiUrl").value = url;
+    $("aiTestOut").textContent = "सेव हो गया ✓";
+  } catch (e) {
+    alert("सेव नहीं हुआ (Rules देखें): " + (e.code || e.message));
+  }
+};
+
+$("aiTest").onclick = async () => {
+  const url = cleanAiUrl($("aiUrl").value);
+  const model = $("aiModel").value.trim() || "llama3.2";
+  const out = $("aiTestOut");
+  if (!url) { out.textContent = "पहले URL डालें"; return; }
+  out.textContent = "जाँच रहा हूँ...";
+  const t0 = Date.now();
+  try {
+    const r = await fetch(url + "/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model, stream: false, messages: [{ role: "user", content: "एक शब्द में उत्तर दो: नमस्ते" }] })
+    });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const j = await r.json();
+    out.textContent = "चल रहा है ✓ (" + ((Date.now() - t0) / 1000).toFixed(1) + " सेकंड): " +
+      ((j.message && j.message.content) || "").slice(0, 80);
+  } catch (e) {
+    out.textContent = "नहीं चला: " + e.message + "। जाँचें: Ollama चालू है? OLLAMA_ORIGINS सेट है? tunnel चल रहा है? URL सही है?";
+  }
+};
+</script>
+</body>
+</html>
